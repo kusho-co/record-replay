@@ -59,18 +59,6 @@ def create_app():
             'count': len(anomalies)
         })
 
-    # @app.route('/api/v1/analysis/analyze', methods=['POST'])
-    # async def trigger_analysis():
-    #     hours = request.json.get('hours', 24)
-        
-    #     analyzer = RequestAnalyzer(storage)
-    #     await analyzer.analyze_recent_traffic(hours)
-        
-    #     return jsonify({
-    #         'status': 'success',
-    #         'message': f'Analyzed traffic for past {hours} hours'
-    #     })
-    
     @app.route('/api/v1/analysis/analyze', methods=['POST'])
     async def analyze_traffic():
         try:
