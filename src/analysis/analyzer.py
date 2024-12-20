@@ -4,6 +4,7 @@ import logging
 from .vectorizer import RequestVectorizer
 from ..storage.mysql import MySQLStorage
 from dataclasses import dataclass
+from .deduplicator_v1 import APIDeduplicator
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -20,6 +21,7 @@ class RequestAnalyzer:
     def __init__(self, storage: MySQLStorage):
         self.storage = storage
         self.vectorizer = RequestVectorizer()
+        self.deduplicator = APIDeduplicator()
         self.similarity_threshold = 0.7
         logger.info("RequestAnalyzer initialized with similarity threshold: %f", self.similarity_threshold)
 
@@ -35,6 +37,10 @@ class RequestAnalyzer:
         if not events or len(events) < 2:
             logger.warning("Insufficient events for analysis: %d events found", len(events) if events else 0)
             return
+
+        logger.info("Deduplicating %d events", len(events))
+        unique_events = self.deduplicator.deduplicate(events)
+        logger.info("%d unique events remaining after deduplication", len(unique_events))
 
         logger.debug("Processing %d events for analysis", len(events))
 

@@ -5,6 +5,9 @@ from .storage.mysql import MySQLStorage
 from .services.traffic import TrafficService
 from .analysis.analyzer import RequestAnalyzer
 import logging
+from .analysis.deduplicator import deduplicate_events
+from .analysis.cluster import cluster_events
+from .analysis.dedupe import DedupeAnalyzer
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -75,6 +78,108 @@ def create_app():
                 'message': str(e)
             }), 500
     
+
+    @app.get("/deduplicate")
+    async def deduplicate(start_time: str, end_time: str):
+        """
+        Deduplicate events within the specified time range.
+        :param start_time: Start time in ISO format (e.g., '2023-12-20T00:00:00')
+        :param end_time: End time in ISO format (e.g., '2023-12-20T23:59:59')
+        :return: List of unique events.
+        """
+        try:
+            # Convert string to datetime
+            # start_dt = datetime.fromisoformat(start_time)
+            # end_dt = datetime.fromisoformat(end_time)
+
+            # Fetch deduplicated events
+            # deduplicated_events = await storage.get_deduplicated_events(start_dt, end_dt)
+            # Fetch events from storage within the specified time range
+
+            #######
+            events = await storage.get_analytics(start_time, end_time)
+
+            # Call the deduplication function
+            deduplicated_events = deduplicate_events(events)
+
+            return {"deduplicated_events": deduplicated_events}
+        except Exception as e:
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
+    @app.route("/api/v1/cluster", methods=["POST"])
+    async def cluster():
+        """
+        Cluster API events within a given time range and return clusters.
+        """
+        try:
+            # Parse input data
+            data = request.get_json()
+            start_time = datetime.fromisoformat(data["start_time"])
+            end_time = datetime.fromisoformat(data["end_time"])
+            num_clusters = int(data.get("num_clusters", 5))
+
+            # Fetch events from storage
+            events = await storage.get_deduplicated_events(start_time, end_time)
+
+            # Ensure payloads are valid
+            events = [event for event in events if event["payload"]]
+
+            if not events:
+                return jsonify({"message": "No valid events found for clustering"}), 400
+
+            # Cluster events
+            clustered_events = cluster_events(events, num_clusters=num_clusters)
+
+            # Return the clustered data
+            return jsonify({"clusters": clustered_events}), 200
+
+        except Exception as e:
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+        
+    
+    @app.route('/api/v1/dedupe', methods=['POST'])
+    def dedupe_api():
+        try:
+            # Get the request payload
+            payload = request.json
+            start_time = datetime.fromisoformat(payload.get('start_time'))
+            end_time = datetime.fromisoformat(payload.get('end_time'))
+
+            # Fetch data from storage
+            storage = MySQLStorage(connection_uri="mysql://user:password@localhost/db")
+            data = storage.get_deduplication_data(start_time, end_time)
+
+            # Initialize and train the deduplication analyzer
+            # Define the fields for deduplication
+            DEDUPLICATION_FIELDS = [
+                {'field': 'path', 'type': 'String'},
+                {'field': 'method', 'type': 'Exact'},
+                {'field': 'request_body', 'type': 'Text'}
+            ]
+
+            dedupe_analyzer = DedupeAnalyzer(fields=DEDUPLICATION_FIELDS)
+            dedupe_analyzer.train(data)
+
+            # Perform clustering
+            clusters = dedupe_analyzer.cluster(data)
+
+            # Format and return results
+            response = [
+                {"record_ids": cluster[0], "similarity_score": cluster[1]}
+                for cluster in clusters
+            ]
+
+            return jsonify({"clusters": response})
+
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
     return app
 
 if __name__ == '__main__':

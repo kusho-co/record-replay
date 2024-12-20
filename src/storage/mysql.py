@@ -150,3 +150,38 @@ class MySQLStorage(StorageBackend):
             return formatted_results
         finally:
             session.close()
+
+    async def get_deduplication_data(self, start_time: datetime, end_time: datetime):
+        """
+        Fetch data required for deduplication within a specific time range.
+        :param start_time: Start of the time range.
+        :param end_time: End of the time range.
+        :return: A dictionary of records with their IDs as keys.
+        """
+        session = self.Session()
+        try:
+            query = (
+                session.query(
+                    TrafficEvent.id,
+                    TrafficEvent.path,
+                    TrafficEvent.method,
+                    TrafficEvent.request_body
+                )
+                .filter(
+                    TrafficEvent.timestamp.between(start_time, end_time)
+                )
+            )
+            results = query.all()
+
+            # Prepare data for deduplication
+            data = {
+                record.id: {
+                    "path": record.path,
+                    "method": record.method,
+                    "request_body": record.request_body or ""
+                }
+                for record in results
+            }
+            return data
+        finally:
+            session.close()
