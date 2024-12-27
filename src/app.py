@@ -4,13 +4,19 @@ from .config import Config
 from .storage.mysql import MySQLStorage
 from .services.traffic import TrafficService
 from .analysis.analyzer import RequestAnalyzer
+from .generation.test_utils import TestGenerator
+from .background_worker import BackgroundWorker
+from .models import Job
 import logging
+
 
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
+
+logger = logging.getLogger(__name__)
 
 def create_app():
     app = Flask(__name__)
@@ -58,6 +64,15 @@ def create_app():
             'anomalies': anomalies,
             'count': len(anomalies)
         })
+    
+    @app.route("/api/v1/generate-tests/bulk", methods=["POST"])
+    async def generate_tests_bulk():
+        """Generate test cases in bulk"""
+        test_generator = TestGenerator()
+        data = request.get_json()
+        test_cases = await test_generator.generate_bulk(data)
+        return jsonify(test_cases)
+
 
     @app.route('/api/v1/analysis/analyze', methods=['POST'])
     async def analyze_traffic():
@@ -75,7 +90,60 @@ def create_app():
                 'message': str(e)
             }), 500
     
+    @app.route('/api/v1/analysis/start-job', methods=['POST'])
+    async def start_analysis_job():
+        """Start a new analysis and test generation job"""
+        try:
+            hours = request.json.get('hours', 24)
+            worker = BackgroundWorker(storage, TestGenerator())
+            results = await worker.run_analysis(hours=24)
+            logger.info(f"final resultsssssssssssssssssw {results}")
+            # print(f"Generated {results['total_test_cases']} test cases for {results['endpoints_processed']} endpoints")
+            # job_id = await worker.start_analysis_job(hours)
+            
+            return jsonify({
+                'status': 'success',
+                # 'job_id': job_id,
+                'message': f'Started analysis job for past {hours} hours'
+            })
+        except Exception as e:
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+    
+    @app.route('/api/v1/analysis/job-status/<int:job_id>', methods=['GET'])
+    async def get_job_status(job_id):
+        """Get the status of a job"""
+        session = storage.Session()
+        try:
+            job = session.query(Job).get(job_id)
+            if not job:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Job not found'
+                }), 404
+                
+            response = {
+                'job_id': job.id,
+                'status': job.status,
+                'created_at': job.created_at.isoformat(),
+                'updated_at': job.updated_at.isoformat()
+            }
+            
+            if job.status == 'completed':
+                response['result'] = job.result
+            elif job.status == 'failed':
+                response['error'] = job.error_message
+                
+            return jsonify(response)
+        finally:
+            session.close()
+
+    
     return app
+
+
 
 if __name__ == '__main__':
     app = create_app()

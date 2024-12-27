@@ -11,6 +11,8 @@ services:
       - MYSQL_USER=kusho
       - MYSQL_PASSWORD=kusho_password
       - MYSQL_DATABASE=kusho_traffic
+      - OPENAI_ORGID=""
+      - OPENAI_API_KEY=""
     depends_on:
       - mysql
 

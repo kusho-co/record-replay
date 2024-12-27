@@ -77,28 +77,28 @@ class MySQLStorage(StorageBackend):
         finally:
             session.close()
 
-    # async def get_unique_endpoints(self, hours: int):
-    #     session = self.Session()
-    #     try:
-    #         cutoff_time = datetime.now() - timedelta(hours=hours)
-    #         query = (
-    #             session.query(distinct(TrafficEvent.path), TrafficEvent.method)
-    #             .filter(TrafficEvent.timestamp >= cutoff_time)
-    #         )
-    #         return query.all()
-    #     finally:
-    #         session.close()
-
     async def get_unique_endpoints(self, hours: int):
         session = self.Session()
         try:
+            cutoff_time = datetime.now() - timedelta(hours=hours)
             query = (
                 session.query(distinct(TrafficEvent.path), TrafficEvent.method)
-                .filter(TrafficEvent.path.like('/api/users%'))  # Filter paths that start with /api/users
+                .filter(TrafficEvent.timestamp >= cutoff_time)
             )
             return query.all()
         finally:
             session.close()
+
+    # async def get_unique_endpoints(self, hours: int):
+    #     session = self.Session()
+    #     try:
+    #         query = (
+    #             session.query(distinct(TrafficEvent.path), TrafficEvent.method)
+    #             .filter(TrafficEvent.path.like('/api/users%'))  # Filter paths that start with /api/users
+    #         )
+    #         return query.all()
+    #     finally:
+    #         session.close()
 
 
 
