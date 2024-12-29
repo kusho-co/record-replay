@@ -57,17 +57,6 @@ class RequestPattern(Base):
         UniqueConstraint('path', 'method', name='unique_path_method'),
     )
 
-class Job(Base):
-    __tablename__ = 'jobs'
-    
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    job_type = Column(String(50), nullable=False)  # e.g., 'anomaly_analysis', 'test_generation'
-    status = Column(String(20), nullable=False)  # 'pending', 'running', 'completed', 'failed'
-    created_at = Column(DateTime, server_default=func.current_timestamp())
-    updated_at = Column(DateTime, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
-    result = Column(JSON)
-    error_message = Column(Text)
-
 class EndpointTestCase(Base):
     __tablename__ = 'endpoint_test_cases'
     
@@ -105,5 +94,15 @@ class TestCase(Base):
     request_path_params = Column(JSON)
     request_query_params = Column(JSON)
     request_body = Column(JSON)
-    created_at = Column(DateTime, server_default=func.current_timestamp())
+    
+
+class Job(Base):
+    __tablename__ = 'jobs'
+    
+    id = Column(String(36), primary_key=True)
+    status = Column(String(50), nullable=False)
+    created_at = Column(DateTime, nullable=False)
+    updated_at = Column(DateTime, nullable=False)
+    result = Column(JSON, nullable=True)
+    error_message = Column(Text, nullable=True)
 
