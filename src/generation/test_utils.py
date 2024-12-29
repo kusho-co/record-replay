@@ -18,11 +18,12 @@ Return each test case one at a time in valid JSON format.
 Endpoint: {url}
 Method: {http_method}
 
-Recent Traffic Patterns:
-{samples}
+Complete request
+{complete_request}
 
 For each test case, return in this exact JSON format:
 {{
+    "description": "Meaningful description for the Test case",
     "category": ["functional"|"security"|"performance"|"validation"],
     "priority": "high"|"medium"|"low",
     "request": {{
@@ -93,12 +94,11 @@ class TestGenerator:
     def _create_prompt(self, endpoint_data: Dict) -> str:
         """Create prompt from endpoint data"""
         logger.debug("Creating prompt from endpoint data")
-        samples = json.dumps(endpoint_data.get("samples", []), indent=2)
         
         prompt = TEST_GENERATION_PROMPT.format(
             url=endpoint_data.get("url", ""),
             http_method=endpoint_data.get("http_method", ""),
-            samples=samples
+            complete_request=endpoint_data
         )
         logger.debug(f"Created prompt: {prompt[:200]}...")  # Log first 200 chars
         return prompt

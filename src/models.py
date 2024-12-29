@@ -77,3 +77,33 @@ class EndpointTestCase(Base):
     http_method = Column(String(10), nullable=False)
     test_cases = Column(JSON)
     created_at = Column(DateTime, server_default=func.current_timestamp())
+
+class EndpointTestSuite(Base):
+    __tablename__ = 'endpoint_test_suites'
+    
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    url = Column(String(255), nullable=False)
+    http_method = Column(String(10), nullable=False)
+    last_updated = Column(DateTime, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+    created_at = Column(DateTime, server_default=func.current_timestamp())
+
+    __table_args__ = (
+        UniqueConstraint('url', 'http_method', name='unique_endpoint'),
+    )
+
+class TestCase(Base):
+    __tablename__ = 'test_cases'
+    
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    suite_id = Column(BigInteger, ForeignKey('endpoint_test_suites.id'), nullable=False)
+    description = Column(String(255))
+    category = Column(String(50))
+    priority = Column(String(20))
+    request_method = Column(String(10))
+    request_url = Column(String(255))
+    request_headers = Column(JSON)
+    request_path_params = Column(JSON)
+    request_query_params = Column(JSON)
+    request_body = Column(JSON)
+    created_at = Column(DateTime, server_default=func.current_timestamp())
+

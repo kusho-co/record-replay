@@ -96,14 +96,9 @@ def create_app():
         try:
             hours = request.json.get('hours', 24)
             worker = BackgroundWorker(storage, TestGenerator())
-            results = await worker.run_analysis(hours=24)
-            logger.info(f"final resultsssssssssssssssssw {results}")
-            # print(f"Generated {results['total_test_cases']} test cases for {results['endpoints_processed']} endpoints")
-            # job_id = await worker.start_analysis_job(hours)
-            
+            results = await worker.run_analysis(hours=24)            
             return jsonify({
                 'status': 'success',
-                # 'job_id': job_id,
                 'message': f'Started analysis job for past {hours} hours'
             })
         except Exception as e:

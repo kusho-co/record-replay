@@ -3,7 +3,11 @@ from typing import List, Dict, Any
 from sqlalchemy import create_engine, select, distinct, and_, text
 from sqlalchemy.orm import sessionmaker
 from .base import StorageBackend
-from ..models import TrafficEvent, RequestAnomaly
+from ..models import TrafficEvent, RequestAnomaly, EndpointTestSuite, TestCase
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class MySQLStorage(StorageBackend):
     def __init__(self, connection_uri: str):
@@ -89,19 +93,6 @@ class MySQLStorage(StorageBackend):
         finally:
             session.close()
 
-    # async def get_unique_endpoints(self, hours: int):
-    #     session = self.Session()
-    #     try:
-    #         query = (
-    #             session.query(distinct(TrafficEvent.path), TrafficEvent.method)
-    #             .filter(TrafficEvent.path.like('/api/users%'))  # Filter paths that start with /api/users
-    #         )
-    #         return query.all()
-    #     finally:
-    #         session.close()
-
-
-
     async def get_anomalies(self, hours: int = 24, min_score: float = 0.0):
         session = self.Session()
         try:
@@ -148,5 +139,61 @@ class MySQLStorage(StorageBackend):
                 })
             
             return formatted_results
+        finally:
+            session.close()
+    
+    async def get_anomalies_by_endpoint(self, hours: int = 24):
+        session = self.Session()
+        try:
+            cutoff_time = datetime.now() - timedelta(hours=hours)
+            query = (
+                session.query(RequestAnomaly)
+                .filter(RequestAnomaly.detected_at >= cutoff_time)
+            )
+            return query.all()
+        finally:
+            session.close()
+
+    
+    async def store_test_case(self, url: str, http_method: str, test_case: Dict):
+        session = self.Session()
+        try:
+            # Try to find existing test suite for this endpoint
+            test_suite = session.query(EndpointTestSuite).filter(
+                and_(
+                    EndpointTestSuite.url == url,
+                    EndpointTestSuite.http_method == http_method
+                )
+            ).first()
+
+            if not test_suite:
+                # If doesn't exist, create new test suite
+                test_suite = EndpointTestSuite(
+                    url=url,
+                    http_method=http_method
+                )
+                session.add(test_suite)
+                session.flush()  # This will populate the id
+
+            # Create new test case
+            new_test_case = TestCase(
+                suite_id=test_suite.id,
+                description=test_case.get('description'),
+                category=test_case.get('category'),
+                priority=test_case.get('priority'),
+                request_method=test_case['request']['method'],
+                request_url=test_case['request']['url'],
+                request_headers=test_case['request'].get('headers'),
+                request_path_params=test_case['request'].get('path_params'),
+                request_query_params=test_case['request'].get('query_params'),
+                request_body=test_case['request'].get('body')
+            )
+            session.add(new_test_case)
+            session.commit()
+            return new_test_case.id
+        except Exception as e:
+            logger.error(f"Error storing test case: {str(e)}")
+            session.rollback()
+            raise
         finally:
             session.close()
