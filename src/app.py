@@ -91,6 +91,8 @@ def create_app():
             # Define the background task
             def run_analysis_job(job_id, hours):
                 try:
+                    analyzer = RequestAnalyzer(storage)
+                    analyzer.analyze_recent_traffic(hours)
                     worker = BackgroundWorker(storage, TestGenerator())
                     results = asyncio.run(worker.run_analysis(hours=hours))
                     logger.info(f"Analysis job {job_id} completed: {results}")
@@ -132,6 +134,54 @@ def create_app():
             'result': job_info.get('result'),
             'error': job_info.get('error')
         })
+    
+    @app.route('/api/v1/export/openapi', methods=['GET'])
+    def export_openapi():
+        """Export test suite data in OpenAPI-compatible JSON."""
+        try:
+            base_url = request.args.get('base_url')
+            if not base_url:
+                return jsonify({'status': 'error', 'message': 'Missing base_url parameter'}), 400
+
+            # Use the storage function to generate OpenAPI data
+            openapi_data = storage.generate_openapi_data(base_url)
+            return jsonify(openapi_data)
+
+        except Exception as e:
+            logger.error(f"Error exporting OpenAPI data: {str(e)}")
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+        
+    @app.route('/api/v1/export/openapi/endpoint', methods=['GET'])
+    def export_openapi_for_endpoint():
+        """Export OpenAPI data for a specific endpoint."""
+        try:
+            base_url = request.args.get('base_url')
+            url = request.args.get('url')
+            http_method = request.args.get('http_method')
+            
+            if not base_url or not url or not http_method:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Missing required parameters: base_url, url, http_method'
+                }), 400
+
+            openapi_data = storage.generate_openapi_data_for_endpoint(url, http_method, base_url)
+            return jsonify(openapi_data)
+
+        except Exception as e:
+            logger.error(f"Error exporting OpenAPI for endpoint: {str(e)}")
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+
+    @app.route('/api/v1/endpoints', methods=['GET'])
+    def list_available_endpoints():
+        """List all available endpoints."""
+        try:
+            endpoints = storage.get_available_endpoints()
+            return jsonify({'status': 'success', 'endpoints': endpoints})
+        except Exception as e:
+            logger.error(f"Error listing endpoints: {str(e)}")
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+
 
     
     return app

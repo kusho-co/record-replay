@@ -197,3 +197,122 @@ class MySQLStorage(StorageBackend):
             raise
         finally:
             session.close()
+
+    def generate_openapi_data(self, base_url: str) -> Dict:
+        """Generate OpenAPI-compatible data."""
+        session = self.Session()
+        try:
+            openapi_data = {
+                "openapi": "3.0.0",
+                "info": {
+                    "title": "API Documentation",
+                    "version": "1.0.0",
+                },
+                "servers": [{"url": base_url}],
+                "paths": {}
+            }
+
+            # Query all test suites
+            test_suites = session.query(EndpointTestSuite).all()
+
+            for suite in test_suites:
+                if suite.url not in openapi_data["paths"]:
+                    openapi_data["paths"][suite.url] = {}
+
+                # Query test cases for each suite
+                test_cases = session.query(TestCase).filter_by(suite_id=suite.id).all()
+                for case in test_cases:
+                    method = case.request_method.lower()
+                    if method not in openapi_data["paths"][suite.url]:
+                        openapi_data["paths"][suite.url][method] = {
+                            "summary": case.description or "",
+                            "parameters": [
+                                {
+                                    "name": "path",
+                                    "in": "path",
+                                    "required": False,
+                                    "schema": {"type": "string"}
+                                }
+                            ],
+                            "requestBody": {
+                                "content": {
+                                    "application/json": case.request_body
+                                }
+                            },
+                            "responses": {
+                                "200": {
+                                    "description": "Successful response",
+                                }
+                            }
+                        }
+
+            return openapi_data
+
+        except Exception as e:
+            logger.error(f"Error generating OpenAPI data: {str(e)}")
+            raise
+        finally:
+            session.close()
+
+    def generate_openapi_data_for_endpoint(self, url: str, http_method: str, base_url: str) -> Dict:
+        """Generate OpenAPI-compatible data for a single endpoint."""
+        session = self.Session()
+        try:
+            test_suite = session.query(EndpointTestSuite).filter_by(url=url, http_method=http_method).first()
+            if not test_suite:
+                raise ValueError(f"No test suite found for URL {url} and method {http_method}")
+
+            openapi_data = {
+                "openapi": "3.0.0",
+                "info": {
+                    "title": "API Documentation",
+                    "version": "1.0.0",
+                },
+                "servers": [{"url": base_url}],
+                "paths": {
+                    url: {
+                        http_method.lower(): {
+                            "summary": "",
+                            "parameters": [],
+                            "responses": {}
+                        }
+                    }
+                }
+            }
+
+            test_cases = session.query(TestCase).filter_by(suite_id=test_suite.id).all()
+            for case in test_cases:
+                method_data = openapi_data["paths"][url][http_method.lower()]
+                method_data["summary"] = case.description or ""
+                method_data["parameters"] = [
+                    {
+                        "name": "path",
+                        "in": "path",
+                        "required": False,
+                        "schema": {"type": "string"}
+                    }
+                ]
+                method_data["requestBody"] = {
+                    "content": {
+                        "application/json": case.request_body
+                    }
+                }
+                method_data["responses"]["200"] = {"description": "Successful response"}
+
+            return openapi_data
+
+        except Exception as e:
+            logger.error(f"Error generating OpenAPI data for endpoint: {str(e)}")
+            raise
+        finally:
+            session.close()
+
+    def get_available_endpoints(self) -> List[Dict[str, str]]:
+        """Get all available endpoints."""
+        session = self.Session()
+        try:
+            endpoints = session.query(EndpointTestSuite).all()
+            return [{"url": e.url, "http_method": e.http_method} for e in endpoints]
+        finally:
+            session.close()
+
